@@ -1,0 +1,24 @@
+{
+    "name": "nalogka/codeception-data-creation",
+    "description": "Codeception module for runtime test data creation.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Anton Tyutin",
+            "email": "anton@tyutin.ru"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Nalogka\\Codeception\\Database\\": "src/"
+        }
+    },
+    "require": {
+        "symfony/property-access": "^2.0||^3.0||^4.0"
+    },
+    "require-dev": {
+        "codeception/base": "^2.4",
+        "doctrine/orm": "^2.6"
+    }
+}
