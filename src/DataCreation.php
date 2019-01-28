@@ -5,7 +5,9 @@ namespace Nalogka\Codeception\Database;
 use Codeception\Module\Doctrine2;
 use Codeception\TestInterface;
 use Doctrine\ORM\QueryBuilder;
+use Symfony\Bridge\Doctrine\PropertyInfo\DoctrineExtractor;
 use Symfony\Component\PropertyAccess\PropertyAccess;
+use Symfony\Component\PropertyInfo\Type;
 
 /**
  * Модуль создания и проверки данных для проектов,
@@ -212,6 +214,51 @@ class DataCreation extends Doctrine2
         $res = $qb->getQuery()->setCacheable(false)->getArrayResult();
 
         return ['True', (count($res) > 0), "$entity with " . json_encode($params)];
+    }
+    
+    /**
+     * It's Hugging Recursive!
+     *
+     * @param QueryBuilder $qb
+     * @param $assoc
+     * @param $alias
+     * @param $params
+     */
+    protected function buildAssociationQuery($qb, $assoc, $alias, $params)
+    {
+        $classMetadata = $this->em->getClassMetadata($assoc);
+        $typeExtractor = new DoctrineExtractor($this->em);
+
+        foreach ($params as $key => $val) {
+            $paramname = str_replace(".", "", "{$alias}_{$key}");
+            if (isset($classMetadata->associationMappings)) {
+                if (array_key_exists($key, $classMetadata->associationMappings)) {
+                    if (is_array($val)) {
+                        $qb->innerJoin("$alias.$key", $paramname);
+                        $this->buildAssociationQuery(
+                            $qb,
+                            $classMetadata->associationMappings[$key]['targetEntity'],
+                            $paramname,
+                            $val
+                        );
+
+                        continue;
+                    }
+                }
+            }
+            if ($val === null) {
+                $qb->andWhere("$alias.$key IS NULL");
+            } else {
+                $qb->andWhere("$alias.$key = :$paramname");
+
+                $isCustomType = $typeExtractor->getTypes($assoc, $key) === null;
+
+                // В случае если поле имеет нестандартный тип данных, нужно передать его в QueryBuilder->setParameter(),
+                // чтобы использовалась функция конвертации значения этого поля,
+                // и фильрация выполнялась по значению правильного типа (тип данных в БД)
+                $qb->setParameter($paramname, $val, $isCustomType ? $classMetadata->getTypeOfField($key) : null);
+            }
+        }
     }
 
     private function getNormalizedTypeName($dataType)
