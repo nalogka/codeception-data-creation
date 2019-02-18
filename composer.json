@@ -15,12 +15,12 @@
         }
     },
     "require": {
-        "symfony/property-access": "^2.0||^3.0||^4.0"
+        "symfony/property-access": "^2.0||^3.0||^4.0",
+        "symfony/doctrine-bridge": "^4.2",
+        "symfony/property-info": "^4.2"
     },
     "require-dev": {
         "codeception/base": "^2.4",
-        "doctrine/orm": "^2.6",
-        "symfony/doctrine-bridge": "^4.2",
-        "symfony/property-info": "^4.2"
+        "doctrine/orm": "^2.6"
     }
 }
