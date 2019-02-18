@@ -66,7 +66,7 @@ composer require --dev nalogka/codeception-data-creation
 `DataCreation::persistAndRegisterCreated()` или
 `DataCreation::registerPreviouslyCreated()`.
 
-Далее в шагах проверки можно извлекать необходимые данные, импользуя
+Далее в шагах проверки можно извлекать необходимые данные, используя
 `DataCreation::getOrCreate()`.
 
 Также есть вспомогательный метод `DataCreation::fillDataPlaceholders()`
