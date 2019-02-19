@@ -7,11 +7,21 @@ use Codeception\TestInterface;
 use Doctrine\ORM\QueryBuilder;
 use Symfony\Bridge\Doctrine\PropertyInfo\DoctrineExtractor;
 use Symfony\Component\PropertyAccess\PropertyAccess;
-use Symfony\Component\PropertyInfo\Type;
 
 /**
  * Модуль создания и проверки данных для проектов,
  * использующих Doctrine2
+ *
+ * !!!
+ * Для того чтобы получить данные именно из репозитория(базы данных) нам необходимо перед запросами
+ * которые подразумевают доставание сущности из репозитория очистить кеш UnitOfWork:
+ * (  $this->em->getUnitOfWork()->clear($entityClass);  )
+ * Так как в момент получения данных из репозитория, если сущность есть в UnitOfWork::identityMap и она персистентна
+ * то берется именно она, а не создаётся новая.
+ * А так как предполагается что сущность была создана не обязательно в рамках текущего запроса, а могла быть создана
+ * ранее, то данных в кеше UnitOfWork не предполагается, либо они могут не полностью
+ * соответствовать состоянию в репозитории.
+ *
  */
 class DataCreation extends Doctrine2
 {
@@ -171,7 +181,7 @@ class DataCreation extends Doctrine2
     }
 
     /**
-     * Заменяет в строке подстановку(ки), вида `{id персоны "Иван"}` на заначение
+     * Заменяет в строке подстановку(ки), вида `{id персоны "Иван"}` на значение
      * поля ранее созданных данных
      *
      * @param string $string строка с подстановками
@@ -194,28 +204,124 @@ class DataCreation extends Doctrine2
     }
 
 
+    /**
+     * Есть ли в репозитории данные указанного типа с определёнными параметрами
+     *
+     * @param string $type Тип требуемых данных
+     * @param array $params Параметры поиска
+     */
     public function seeItemInRepository($type, array $params)
     {
         $this->seeInRepository($this->dataClasses[$this->getNormalizedTypeName($type)], $params);
     }
 
-
+    /**
+     * Отсутствуют ли в репозитории данные указанного типа с определёнными параметрами
+     *
+     * @param string $type Тип требуемых данных
+     * @param array $params Параметры поиска
+     */
     public function dontSeeItemInRepository($type, array $params)
     {
         $this->dontSeeInRepository($this->dataClasses[$this->getNormalizedTypeName($type)], $params);
     }
 
-    protected function proceedSeeInRepository($entity, $params = [])
+    /**
+     * Получает значение определённого поля сущности из репозитория.
+     *
+     * Может понадобится в случае, когда необходимо проверить данные сущности из репозитория
+     * по более сложному правилу чем просто при запросе `SELECT * entity WHERE field = value;`,
+     * например что в поле json представляющий массив объектов из X элементов.
+     *
+     * @param string $type Тип требуемых данных
+     * @param string $id Идентификатор данных, по которому к ним идет обращение в тексте тестового сценария.
+     * @param string $field Поле которое нужно получить
+     * @return mixed
+     * @throws \Doctrine\ORM\NonUniqueResultException
+     */
+    public function getItemFieldFromRepository($type, $id, $field)
     {
+        $entityClass = $this->dataClasses[$this->getNormalizedTypeName($type)];
+
+        $entity = $this->hasRecentlyCreated($type)
+            ? $this->getRecentlyCreated($type)
+            : $this->getPreviouslyCreated($type, $id);
+
+        /** @see DataCreation комментарий в начале класса */
+        $this->em->getUnitOfWork()->clear($entityClass);
         /** @var QueryBuilder $qb */
-        $qb = $this->em->getRepository($entity)->createQueryBuilder('s');
-        $this->buildAssociationQuery($qb, $entity, 's', $params);
+        $qb = $this->em->getRepository($entityClass)->createQueryBuilder('s');
+        $qb->select('s.'.$field);
+        $this->buildAssociationQuery($qb, $entityClass, 's', $this->getIdentifierParams($entity));
+        $this->debug($qb->getDQL());
+
+        return $qb->getQuery()->setCacheable(false)->getSingleScalarResult();
+    }
+
+    /**
+     * Получает данные сущности из репозитория
+     *
+     * Может понадобится в случае, когда необходимо проверить данные сущности из репозитория
+     * по более сложному правилу чем просто при запросе `SELECT * entity WHERE field = value;`,
+     * например что в поле json представляющий массив объектов из X элементов.
+     *
+     * @param string $type Тип требуемых данных
+     * @param string $id Идентификатор данных, по которому к ним идет обращение в тексте тестового сценария.
+     * @return mixed
+     * @throws \Doctrine\ORM\NoResultException
+     * @throws \Doctrine\ORM\NonUniqueResultException
+     */
+    public function getItemFromRepository($type, $id)
+    {
+        $entityClass = $this->dataClasses[$this->getNormalizedTypeName($type)];
+
+        $entity = $this->hasRecentlyCreated($type)
+            ? $this->getRecentlyCreated($type)
+            : $this->getPreviouslyCreated($type, $id);
+
+
+        /** @see DataCreation комментарий в начале класса */
+        $this->em->getUnitOfWork()->clear($entityClass);
+        /** @var QueryBuilder $qb */
+        $qb = $this->em->getRepository($entityClass)->createQueryBuilder('s');
+        $qb->select('s');
+        $this->buildAssociationQuery($qb, $entityClass, 's', $this->getIdentifierParams($entity));
+        $this->debug($qb->getDQL());
+
+        return $qb->getQuery()->setCacheable(false)->getSingleResult();
+    }
+
+    /**
+     * На основании сущности получает идентификаторы
+     *
+     * @param object $entity
+     * @return array
+     */
+    public function getIdentifierParams($entity)
+    {
+        $metaData = $this->em->getClassMetadata(get_class($entity));
+
+        $params = [];
+        foreach ($metaData->getIdentifierValues($entity) as $key => $idName) {
+            $params[$key] = $idName;
+        }
+
+        return $params;
+    }
+
+    protected function proceedSeeInRepository($entityClass, $params = [])
+    {
+        /** @see DataCreation коммент в начале класса */
+        $this->em->getUnitOfWork()->clear($entityClass);
+        /** @var QueryBuilder $qb */
+        $qb = $this->em->getRepository($entityClass)->createQueryBuilder('s');
+        $this->buildAssociationQuery($qb, $entityClass, 's', $params);
         $this->debug($qb->getDQL());
         $res = $qb->getQuery()->setCacheable(false)->getArrayResult();
 
-        return ['True', (count($res) > 0), "$entity with " . json_encode($params)];
+        return ['True', (count($res) > 0), "$entityClass with " . json_encode($params)];
     }
-    
+
     /**
      * It's Hugging Recursive!
      *
@@ -255,7 +361,7 @@ class DataCreation extends Doctrine2
 
                 // В случае если поле имеет нестандартный тип данных, нужно передать его в QueryBuilder->setParameter(),
                 // чтобы использовалась функция конвертации значения этого поля,
-                // и фильрация выполнялась по значению правильного типа (тип данных в БД)
+                // и фильтрация выполнялась по значению правильного типа (тип данных в БД)
                 $qb->setParameter($paramname, $val, $isCustomType ? $classMetadata->getTypeOfField($key) : null);
             }
         }
