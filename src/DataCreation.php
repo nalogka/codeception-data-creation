@@ -333,7 +333,7 @@ class DataCreation extends Doctrine2
     protected function buildAssociationQuery($qb, $assoc, $alias, $params)
     {
         $classMetadata = $this->em->getClassMetadata($assoc);
-        $typeExtractor = new DoctrineExtractor($this->em);
+        $typeExtractor = new DoctrineExtractor($this->em->getMetadataFactory());
 
         foreach ($params as $key => $val) {
             $paramname = str_replace(".", "", "{$alias}_{$key}");
