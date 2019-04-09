@@ -7,6 +7,7 @@ use Codeception\TestInterface;
 use Doctrine\ORM\QueryBuilder;
 use Symfony\Bridge\Doctrine\PropertyInfo\DoctrineExtractor;
 use Symfony\Component\PropertyAccess\PropertyAccess;
+use Symfony\Component\PropertyInfo\Type;
 
 /**
  * Модуль создания и проверки данных для проектов,
@@ -322,6 +323,18 @@ class DataCreation extends Doctrine2
         return ['True', (count($res) > 0), "$entityClass with " . json_encode($params)];
     }
 
+    private function getNormalizedTypeName($dataType)
+    {
+        if (!isset($this->normalizeTypeNameMap[$dataType])) {
+            throw new \RuntimeException(
+                'Попытка нормализации неизвестного типа "' . $dataType
+                    . '". Возможно не указан такой алиас в модуле-хэлпере создания таких данных.'
+            );
+        }
+
+        return $this->normalizeTypeNameMap[$dataType];
+    }
+
     /**
      * It's Hugging Recursive!
      *
@@ -357,25 +370,24 @@ class DataCreation extends Doctrine2
             } else {
                 $qb->andWhere("$alias.$key = :$paramname");
 
-                $isCustomType = $typeExtractor->getTypes($assoc, $key) === null;
+                $types = $typeExtractor->getTypes($assoc, $key);
 
-                // В случае если поле имеет нестандартный тип данных, нужно передать его в QueryBuilder->setParameter(),
-                // чтобы использовалась функция конвертации значения этого поля,
-                // и фильтрация выполнялась по значению правильного типа (тип данных в БД)
-                $qb->setParameter($paramname, $val, $isCustomType ? $classMetadata->getTypeOfField($key) : null);
+                $allowedTypes = [
+                    Type::BUILTIN_TYPE_INT,
+                    Type::BUILTIN_TYPE_FLOAT,
+                    Type::BUILTIN_TYPE_STRING,
+                    Type::BUILTIN_TYPE_BOOL
+                ];
+
+                // В случае если поле имеет нестандартный тип данных, нужно передать его QueryBuilder,
+                // чтобы при использовалась функция конвертации значения этого поля
+                // и фильрация выполнялась по значению правильного типа(в котором значение лежит в БД)
+                $type = !$types || in_array($types[0]->getBuiltinType(), $allowedTypes)
+                    ? $classMetadata->getTypeOfField($key)
+                    : null;
+
+                $qb->setParameter($paramname, $val, $type);
             }
         }
-    }
-
-    private function getNormalizedTypeName($dataType)
-    {
-        if (!isset($this->normalizeTypeNameMap[$dataType])) {
-            throw new \RuntimeException(
-                'Попытка нормализации неизвестного типа "' . $dataType
-                    . '". Возможно не указан такой алиас в модуле-хэлпере создания таких данных.'
-            );
-        }
-
-        return $this->normalizeTypeNameMap[$dataType];
     }
 }
