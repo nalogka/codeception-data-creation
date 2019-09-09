@@ -93,6 +93,9 @@ class DataCreation extends Doctrine2
     public function persistAndRegisterCreated($types, $id, $entity, array $data = [])
     {
         $this->persistEntity($entity, $data);
+        /* Т.к. этот же EM используется в тестируемом контроллере,
+           для проверки правильности преобразования данных при загрузке из БД сделаем refresh */
+        $this->em->refresh($entity);
         $this->registerPreviouslyCreated($types, $id, $entity);
     }
 
