@@ -152,7 +152,7 @@ class DataCreation extends Doctrine2
             throw new \RuntimeException('Запрошены ранее зарегистрированные данные с неизвестным ID');
         }
 
-        return $this->previouslyCreated[$type][$id];
+        return $this->ensureEntityIsInIdentityMap($this->previouslyCreated[$type][$id]);
     }
 
     /**
@@ -181,7 +181,7 @@ class DataCreation extends Doctrine2
             throw new \RuntimeException('Запрошены предыдущие созданные данные, но таких данных не было зарегистрировано');
         }
 
-        return $this->recentlyCreated[$type];
+        return $this->ensureEntityIsInIdentityMap($this->recentlyCreated[$type]);
     }
 
     /**
@@ -392,5 +392,26 @@ class DataCreation extends Doctrine2
         }
 
         return $this->normalizeTypeNameMap[$dataType];
+    }
+
+    /**
+     * @param $entity
+     * @return object
+     */
+    protected function ensureEntityIsInIdentityMap($entity): object
+    {
+        $unitOfWork = $this->em->getUnitOfWork();
+        if (!$unitOfWork->isInIdentityMap($entity)) {
+            $unitOfWork->registerManaged(
+                $entity,
+                $this->em
+                    ->getClassMetadata(get_class($entity))
+                    ->getIdentifierValues($entity),
+                []
+            );
+            $unitOfWork->refresh($entity);
+        }
+
+        return $entity;
     }
 }
