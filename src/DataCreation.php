@@ -4,6 +4,7 @@ namespace Nalogka\Codeception\Database;
 
 use Codeception\Module\Doctrine2;
 use Codeception\TestInterface;
+use Doctrine\Common\Persistence\Mapping\MappingException;
 use Doctrine\ORM\QueryBuilder;
 use Symfony\Bridge\Doctrine\PropertyInfo\DoctrineExtractor;
 use Symfony\Component\PropertyAccess\PropertyAccess;
@@ -398,18 +399,25 @@ class DataCreation extends Doctrine2
      * @param $entity
      * @return object
      */
-    protected function ensureEntityIsInIdentityMap($entity): object
+    protected function ensureEntityIsInIdentityMap($entity)
     {
         $unitOfWork = $this->em->getUnitOfWork();
         if (!$unitOfWork->isInIdentityMap($entity)) {
-            $unitOfWork->registerManaged(
-                $entity,
-                $this->em
-                    ->getClassMetadata(get_class($entity))
-                    ->getIdentifierValues($entity),
-                []
-            );
-            $unitOfWork->refresh($entity);
+            try {
+                $unitOfWork->registerManaged(
+                    $entity,
+                    $this->em
+                        ->getClassMetadata(get_class($entity))
+                        ->getIdentifierValues($entity),
+                    []
+                );
+                $unitOfWork->refresh($entity);
+            } catch (MappingException $e) {
+                // при попытке получить метаданные может быть выкинуто MappingException
+                // в том случае, если сущность для которой мы их пытаемся загрузить
+                // не является отслеживаемой доктриной.
+                // В таком случае нет необходимости ее регистрировать для управления UoW
+            }
         }
 
         return $entity;
