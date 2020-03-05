@@ -4,7 +4,8 @@ namespace Nalogka\Codeception\Database;
 
 use Codeception\Module\Doctrine2;
 use Codeception\TestInterface;
-use Doctrine\Common\Persistence\Mapping\MappingException;
+use Doctrine\Common\Persistence\Mapping\MappingException as PersistenceMappingException;
+use Doctrine\ORM\Mapping\MappingException as OrmMappingException;
 use Doctrine\ORM\QueryBuilder;
 use Symfony\Bridge\Doctrine\PropertyInfo\DoctrineExtractor;
 use Symfony\Component\PropertyAccess\PropertyAccess;
@@ -412,11 +413,18 @@ class DataCreation extends Doctrine2
                     []
                 );
                 $unitOfWork->refresh($entity);
-            } catch (MappingException $e) {
                 // при попытке получить метаданные может быть выкинуто MappingException
-                // в том случае, если сущность для которой мы их пытаемся загрузить
-                // не является отслеживаемой доктриной.
                 // В таком случае нет необходимости ее регистрировать для управления UoW
+            } catch (OrmMappingException $e) {
+                // OrmMappingException будет выброшено в том случае,
+                // если сущность для которой мы пытаемся загрузить метаданные
+                // не является отслеживаемой доктриной.
+            } catch (PersistenceMappingException $e) {
+                // PersistenceMappingException будет выброшено в том случае,
+                // если сущность для которой мы их пытаемся загрузить
+                // не является отслеживаемой доктриной и не найдена в
+                // путях сущностей ORM, заданных в конфигурации пакета doctrine в doctrine.orm.mappings:
+                // Например, при попытке получить метаданные для \StdClass
             }
         }
 
