@@ -187,7 +187,7 @@ class DataCreation extends Doctrine2
     }
 
     /**
-     * Заменяет в строке подстановку(ки), вида `{id персоны "Иван"}` на значение
+     * Заменяет в строке подстановку(ки), вида `{id персоны "Иван"}`, {address.street персоны "Иван"} на значение
      * поля ранее созданных данных
      *
      * @param string $string строка с подстановками
@@ -206,7 +206,7 @@ class DataCreation extends Doctrine2
             );
         };
 
-        return preg_replace_callback('/\{(\w+)\s+([^}]+)\s+"([^}"]+)"\}/', $calculateReplacement, $string);
+        return preg_replace_callback('/\{([\w\.]+)\s+([^}]+)\s+"([^}"]+)"\}/', $calculateReplacement, $string);
     }
 
 
