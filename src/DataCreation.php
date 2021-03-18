@@ -4,7 +4,8 @@ namespace Nalogka\Codeception\Database;
 
 use Codeception\Module\Doctrine2;
 use Codeception\TestInterface;
-use Doctrine\Common\Persistence\Mapping\MappingException as PersistenceMappingException;
+use Doctrine\Persistence\Mapping\MappingException as PersistenceMappingException;
+use Doctrine\Common\Persistence\Mapping\MappingException as  AliasPersistenceMappingException;
 use Doctrine\ORM\Mapping\MappingException as OrmMappingException;
 use Doctrine\ORM\QueryBuilder;
 use Symfony\Bridge\Doctrine\PropertyInfo\DoctrineExtractor;
@@ -419,7 +420,7 @@ class DataCreation extends Doctrine2
                 // OrmMappingException будет выброшено в том случае,
                 // если сущность для которой мы пытаемся загрузить метаданные
                 // не является отслеживаемой доктриной.
-            } catch (PersistenceMappingException $e) {
+            } catch (PersistenceMappingException|AliasPersistenceMappingException $e) {
                 // PersistenceMappingException будет выброшено в том случае,
                 // если сущность для которой мы их пытаемся загрузить
                 // не является отслеживаемой доктриной и не найдена в
